@@ -9,6 +9,7 @@
 #include <process.h>
 #include <iostream>
 #include <string>
+#include <thread>
 
 
 const int nBufferSize = 500;
@@ -28,7 +29,7 @@ VOID WINAPI XYNTServiceHandler( DWORD fdwControl );
 
 CRITICAL_SECTION myCS;
 
-void WriteLog(char* pMsg)
+void WriteLog(const char* pMsg)
 {
 	// write error or other information into log file
 	::EnterCriticalSection(&myCS);
@@ -92,7 +93,7 @@ BOOL StartProcess(int nIndex)
 			DWORD len;
 			GetUserObjectInformation(hCurrentDesktop,UOI_NAME,CurrentDesktopName,MAX_PATH,&len);
 			startUpInfo.wShowWindow = SW_HIDE;
-			startUpInfo.lpDesktop = (bImpersonate==FALSE)?CurrentDesktopName:"";
+			startUpInfo.lpDesktop = const_cast<LPSTR>((bImpersonate==FALSE)?CurrentDesktopName:"");
 		}	
 		if(bImpersonate==FALSE)
 		{
@@ -117,7 +118,10 @@ BOOL StartProcess(int nIndex)
 		else
 		{
 			HANDLE hToken = NULL;
-			if(LogonUser(pUserName,(::strlen(pDomain)==0)?".":pDomain,pPassword,LOGON32_LOGON_SERVICE,LOGON32_PROVIDER_DEFAULT,&hToken))
+            if (strlen(pDomain) == 0){
+                strcpy(pDomain, ".");
+            }
+			if(LogonUser(pUserName,pDomain,pPassword,LOGON32_LOGON_SERVICE,LOGON32_PROVIDER_DEFAULT,&hToken))
 			{
 				if(CreateProcessAsUser(hToken,NULL,pCommandLine,NULL,NULL,TRUE,NORMAL_PRIORITY_CLASS,NULL,(strlen(pWorkingDir)==0)?NULL:pWorkingDir,&startUpInfo,&pProcInfo[nIndex]))
 				{
@@ -191,7 +195,7 @@ void EndExtraProcess(int nIndex)
 		sprintf(pLogKillInfo, "start to kill the process %s", p);
 		WriteLog(pLogKillInfo);
 		::WinExec(pKillCmd,SW_HIDE);
-        p = std::strtok(NULL,splitStr);
+        p = strtok(NULL,splitStr);
     }
 }
 
@@ -622,7 +626,7 @@ void WorkerProc(void* pParam)
 //
 // Standard C Main
 //
-void main(int argc, char *argv[] )
+int main(int argc, char *argv[] )
 {
 	// initialize global critical section
 	::InitializeCriticalSection(&myCS);
@@ -640,7 +644,7 @@ void main(int argc, char *argv[] )
 	else
 	{
 		printf("Invalid module file name: %s\r\n", pModuleFile);
-		return;
+		return -1;
 	}
 	WriteLog(pExeFile);
 	WriteLog(pInitFile);
@@ -649,23 +653,24 @@ void main(int argc, char *argv[] )
 	GetPrivateProfileString("Settings","ServiceName","XYNTService",pServiceName,nBufferSize,pInitFile);
 	WriteLog(pServiceName);
 	// uninstall service if switch is "-u"
-	if(argc==2&&_stricmp("-u",argv[1])==0)
+
+	if(argc==2&&lstrcmpi("-u",argv[1])==0)
 	{
 		UnInstall(pServiceName);
 	}
 	// install service if switch is "-i"
-	else if(argc==2&&_stricmp("-i",argv[1])==0)
+	else if(argc==2&&lstrcmpi("-i",argv[1])==0)
 	{			
 		Install(pExeFile, pServiceName);
 	}
 	// bounce service if switch is "-b"
-	else if(argc==2&&_stricmp("-b",argv[1])==0)
+	else if(argc==2&&lstrcmpi("-b",argv[1])==0)
 	{			
 		KillService(pServiceName);
 		RunService(pServiceName,0,NULL);
 	}
 	// bounce a specifc program if the index is supplied
-	else if(argc==3&&_stricmp("-b",argv[1])==0)
+	else if(argc==3&&lstrcmpi("-b",argv[1])==0)
 	{
 		int nIndex = atoi(argv[2]);
 		if(BounceProcess(pServiceName, nIndex))
@@ -682,7 +687,7 @@ void main(int argc, char *argv[] )
 		}
 	}
 	// kill a service with given name
-	else if(argc==3&&_stricmp("-k",argv[1])==0)
+	else if(argc==3&&lstrcmpi("-k",argv[1])==0)
 	{
 		if(KillService(argv[2]))
 		{
@@ -698,7 +703,7 @@ void main(int argc, char *argv[] )
 		}
 	}
 	// run a service with given name
-	else if(argc>=3&&_stricmp("-r",argv[1])==0)
+	else if(argc>=3&&lstrcmpi("-r",argv[1])==0)
 	{
 		if(RunService(argv[2], argc>3?(argc-3):0,argc>3?(&(argv[3])):NULL))
 		{
