@@ -54,8 +54,11 @@ SERVICE_TABLE_ENTRY   DispatchTable[] =
     {NULL, NULL}
 };
 
-
 // helper functions
+BOOL StartsWith (const char* string, const char* value)
+{
+    return _strnicmp(string, value, strlen(value));
+}
 
 BOOL StartProcess(int nIndex) 
 { 
@@ -79,6 +82,34 @@ BOOL StartProcess(int nIndex)
         char pUserInterface[nBufferSize+1];
         GetPrivateProfileString(pItem,"UserInterface","N",pUserInterface,nBufferSize,pInitFile);
         BOOL bUserInterface = (bImpersonate==FALSE)&&(pUserInterface[0]=='y'||pUserInterface[0]=='Y'||pUserInterface[0]=='1')?TRUE:FALSE;
+        char pPriority[nBufferSize + 1];
+        GetPrivateProfileString(pItem, "Priority", "Normal", pPriority, nBufferSize, pInitFile);
+        DWORD processPriority = NORMAL_PRIORITY_CLASS;
+        //strnicmp(pPriority, "real", sizeof("real"));
+        if (StartsWith(pPriority, "real") == 0)
+        {
+            processPriority = REALTIME_PRIORITY_CLASS;
+        }
+        if (StartsWith(pPriority, "high") == 0)
+        {
+            processPriority = HIGH_PRIORITY_CLASS;
+        }
+        if (StartsWith(pPriority, "above") == 0)
+        {
+            processPriority = ABOVE_NORMAL_PRIORITY_CLASS;
+        }
+        if (StartsWith(pPriority, "norm") == 0)
+        {
+            processPriority = NORMAL_PRIORITY_CLASS;
+        }
+        if (StartsWith(pPriority, "below") == 0)
+        {
+            processPriority = BELOW_NORMAL_PRIORITY_CLASS;
+        }
+        if (StartsWith(pPriority, "low") == 0)
+        {
+            processPriority = IDLE_PRIORITY_CLASS;
+        }
         char CurrentDesktopName[512];
         // set the correct desktop for the process to be started
         if(bUserInterface)
@@ -98,7 +129,7 @@ BOOL StartProcess(int nIndex)
         {
             
             // create the process
-            if(CreateProcess(NULL,pCommandLine,NULL,NULL,TRUE,NORMAL_PRIORITY_CLASS,NULL,strlen(pWorkingDir)==0?NULL:pWorkingDir,&startUpInfo,&pProcInfo[nIndex]))
+            if(CreateProcess(NULL,pCommandLine,NULL,NULL,TRUE, processPriority,NULL,strlen(pWorkingDir)==0?NULL:pWorkingDir,&startUpInfo,&pProcInfo[nIndex]))
             {
                 char pPause[nBufferSize+1];
                 GetPrivateProfileString(pItem,"PauseStart","100",pPause,nBufferSize,pInitFile);
@@ -565,7 +596,7 @@ void WorkerProc(void* pParam)
 {
     int nCheckProcessSeconds = 0;
     char pCheckProcess[nBufferSize+1];
-    GetPrivateProfileString("Settings","CheckProcess","0",pCheckProcess, nBufferSize,pInitFile);
+    GetPrivateProfileString("Settings","CheckProcessSeconds","0",pCheckProcess, nBufferSize,pInitFile);
     int nCheckProcess = atoi(pCheckProcess);
     if(nCheckProcess>0) nCheckProcessSeconds = nCheckProcess*60;
     else
